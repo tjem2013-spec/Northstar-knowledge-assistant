@@ -1,0 +1,15 @@
+import express from 'express';
+const app=express(), PORT=process.env.PORT||3001;
+app.use(express.json()); app.use(express.static('public'));
+const kb=[
+{id:'KB-101',title:'Service Scheduling',text:'Customers can request service appointments through the Northstar service desk. Appointment availability depends on technician schedules and service area coverage. Customers should receive confirmation after an appointment is scheduled.',tags:'schedule appointment service technician'},
+{id:'KB-102',title:'Billing Questions',text:'For billing questions, customers should review their most recent invoice and contact the billing team when an amount appears incorrect. Support staff should verify the account before discussing account-specific information.',tags:'billing invoice payment account'},
+{id:'KB-103',title:'Service Areas',text:'Northstar Home Services serves approved service areas. Availability can vary by service type and location. Support staff should confirm the customer service address before promising availability.',tags:'area location availability address'},
+{id:'KB-104',title:'Customer Support Escalation',text:'Issues involving safety concerns, suspected fraud, unresolved billing disputes, or situations requiring account-specific investigation should be escalated to the appropriate Northstar support team.',tags:'escalation safety fraud dispute support'},
+{id:'KB-105',title:'Cancellations and Changes',text:'Customers who need to change or cancel a service appointment should contact the service desk as soon as possible. The support team should confirm the appointment before making account-specific changes.',tags:'cancel change appointment reschedule'}];
+let stats={questions:0,helpful:0,notHelpful:0};
+function retrieve(q){let w=q.toLowerCase().split(/[^a-z0-9]+/).filter(x=>x.length>2);return kb.map(d=>({...d,score:w.reduce((n,x)=>n+(`${d.title} ${d.text} ${d.tags}`.toLowerCase().includes(x)?1:0),0)})).filter(d=>d.score).sort((a,b)=>b.score-a.score).slice(0,2)}
+app.get('/api/health',(_,r)=>r.json({ok:true})); app.get('/api/stats',(_,r)=>r.json(stats));
+app.post('/api/ask',(req,res)=>{let q=String(req.body?.query||'').trim();if(!q)return res.status(400).json({error:'Please enter a question.'});if(q.length>500)return res.status(400).json({error:'Please keep questions under 500 characters.'});stats.questions++;let docs=retrieve(q);let answer=docs.length?`Based on the Northstar knowledge base, ${docs[0].text} For account-specific questions, a support representative should verify the account before providing details.`:'I could not find enough information in the Northstar knowledge base to answer that confidently. Please contact the appropriate Northstar support team or provide more details.';res.json({answer,confidence:docs.length&&docs[0].score>=2?'High':docs.length?'Moderate':'Low',sources:docs.map(d=>({id:d.id,title:d.title}))})});
+app.post('/api/feedback',(req,res)=>{if(req.body?.helpful===true)stats.helpful++;if(req.body?.helpful===false)stats.notHelpful++;res.json({ok:true})});
+app.listen(PORT,()=>console.log(`Northstar running on ${PORT}`));
